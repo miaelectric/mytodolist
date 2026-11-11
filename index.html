@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Tasks</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<!--
+  데스크톱(웹) 버전 레이아웃
+  - 1200px 이상: [사이드바 | 할 일 목록 | 진행 현황 패널] 3단, 각 열이 따로 스크롤됩니다.
+  - 860~1199px: [사이드바 | (진행 현황 + 목록)] 2단
+  - 860px 미만: 모바일과 같은 1단
+  script.js는 원본과 같습니다. 요소를 id로만 찾으므로 배치가 달라도 그대로 동작합니다.
+  (id를 바꾸거나 지우면 script.js가 시작할 때 오류를 알려 줍니다.)
+-->
+<body class="web">
+  <a class="skip-link" href="#todo-input">할 일 입력으로 건너뛰기</a>
+
+  <div class="app-shell">
+    <!-- ===== 왼쪽 사이드바: 앱 이름, 필터, 정렬, 데이터, 단축키 ===== -->
+    <aside class="sidebar" aria-label="메뉴">
+      <div class="brand">
+        <h1 class="app-title" id="app-title">
+          My Tasks <span id="remaining-badge" class="badge" aria-label="남은 할 일 0개">0</span>
+        </h1>
+        <button id="theme-toggle" type="button" class="theme-toggle" aria-label="다크 모드로 전환" aria-pressed="false">
+          <span class="sun-icon" aria-hidden="true">☀️</span>
+          <span class="moon-icon" aria-hidden="true">🌙</span>
+        </button>
+      </div>
+
+      <!-- 검색은 사이드바에 둡니다. 가운데 열의 고정 영역을 줄여 목록을 더 많이 보여 주기 위해서입니다. -->
+      <div class="search-box" role="search">
+        <label for="search-input" class="visually-hidden">할 일 검색</label>
+        <input type="search" id="search-input" placeholder="할 일 검색... ( / )" autocomplete="off" maxlength="200">
+      </div>
+
+      <div class="sidebar-section">
+        <h2 class="sidebar-label" id="filter-label">카테고리</h2>
+        <!-- 색 점은 CSS로만 그리므로 버튼의 textContent(스크린 리더 안내에 쓰임)에 영향이 없습니다 -->
+        <nav class="filter-nav" id="filter-nav" aria-labelledby="filter-label">
+          <button type="button" class="filter-btn active" data-filter="all" aria-pressed="true">전체</button>
+          <button type="button" class="filter-btn" data-filter="work" aria-pressed="false">업무</button>
+          <button type="button" class="filter-btn" data-filter="personal" aria-pressed="false">개인</button>
+          <button type="button" class="filter-btn" data-filter="study" aria-pressed="false">공부</button>
+        </nav>
+      </div>
+
+      <div class="sidebar-section">
+        <label for="sort-select" class="sidebar-label">정렬</label>
+        <select id="sort-select" class="sort-select">
+          <option value="status">완료 상태순</option>
+          <option value="created">생성일순 (최신)</option>
+          <option value="category">카테고리순</option>
+          <option value="manual">직접 정렬 (드래그)</option>
+        </select>
+      </div>
+
+      <div class="sidebar-section">
+        <h2 class="sidebar-label">입력</h2>
+        <label class="auto-category-toggle">
+          <input type="checkbox" id="auto-category-toggle" checked>
+          키워드로 카테고리 자동 분류
+        </label>
+      </div>
+
+      <div class="sidebar-section">
+        <h2 class="sidebar-label">데이터</h2>
+        <div class="data-actions">
+          <button type="button" id="export-btn" class="secondary-btn">⬇ 내보내기</button>
+          <button type="button" id="import-btn" class="secondary-btn">⬆ 가져오기</button>
+          <input type="file" id="import-file" accept=".json,application/json" hidden>
+        </div>
+      </div>
+
+      <div class="sidebar-section shortcut-help">
+        <h2 class="sidebar-label">단축키</h2>
+        <ul>
+          <li><kbd>/</kbd> 검색</li>
+          <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> 실행 취소</li>
+          <li><kbd>Esc</kbd> 검색어 지우기</li>
+          <li><kbd>↑</kbd><kbd>↓</kbd> 핸들에서 순서 이동</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- ===== 가운데: 검색, 입력 폼, 할 일 목록 ===== -->
+    <main class="main" aria-label="할 일">
+      <!-- 목록을 스크롤해도 입력 폼은 위에 고정됩니다(860px 이상) -->
+      <div class="main-top">
+        <div class="main-inner">
+          <form class="todo-form" id="todo-form" novalidate>
+            <div class="input-group">
+              <label for="category-select" class="visually-hidden">카테고리</label>
+              <select id="category-select" class="category-select">
+                <option value="work">업무</option>
+                <option value="personal">개인</option>
+                <option value="study">공부</option>
+              </select>
+              <label for="todo-input" class="visually-hidden">새 할 일</label>
+              <input
+                type="text"
+                id="todo-input"
+                class="todo-input"
+                placeholder="할 일을 입력하세요"
+                autocomplete="off"
+                maxlength="200"
+                aria-describedby="category-hint input-message"
+              >
+              <button type="submit" class="add-btn">추가</button>
+            </div>
+            <!-- 분류 안내와 경고는 내용이 있을 때만 공간을 차지합니다(:empty → 숨김) -->
+            <p class="category-hint" id="category-hint" aria-live="polite"></p>
+            <p class="input-message" id="input-message" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+
+      <p id="reorder-help" class="visually-hidden">
+        드래그하거나, 이 버튼에 포커스한 뒤 위쪽 또는 아래쪽 화살표 키로 순서를 바꿀 수 있습니다.
+      </p>
+
+      <section class="main-inner list-section" aria-label="할 일 목록 영역">
+        <ul class="todo-list" id="todo-list" aria-label="할 일 목록"></ul>
+        <p class="empty-message" id="empty-message">할 일이 없습니다.</p>
+
+        <footer class="todo-footer" id="todo-footer" hidden>
+          <span class="todo-count" id="todo-count">남은 할 일: 0개</span>
+          <button type="button" class="clear-completed" id="clear-completed">완료 항목 삭제</button>
+        </footer>
+      </section>
+    </main>
+
+    <!-- ===== 오른쪽 패널: 오늘의 격언, 진행 현황 ===== -->
+    <aside class="insights" aria-label="오늘의 격언과 진행 현황">
+      <section class="quote-card" aria-labelledby="quote-heading">
+        <div class="quote-header">
+          <h2 id="quote-heading" class="quote-heading">오늘의 격언</h2>
+          <button id="quote-next" type="button" class="icon-btn" aria-label="다른 격언 보기" title="다른 격언 보기">↻</button>
+        </div>
+        <div aria-live="polite" aria-atomic="true">
+          <blockquote class="quote-text" id="quote-text"></blockquote>
+          <p class="quote-author" id="quote-author"></p>
+        </div>
+      </section>
+
+      <section class="dashboard" id="dashboard" aria-labelledby="dashboard-heading">
+        <h2 id="dashboard-heading" class="dashboard-heading">진행 현황</h2>
+        <div class="main-stats">
+          <div class="progress-info">
+            <span class="progress-label" id="total-progress-label">전체 진행률</span>
+            <span class="progress-text" id="total-progress-text">0/0 완료 (0%)</span>
+          </div>
+          <div class="progress-bar-container" id="total-progress-bar" role="progressbar"
+               aria-labelledby="total-progress-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="progress-bar-fill" id="total-progress-fill"></div>
+          </div>
+          <p class="cheer-message" id="cheer-message"></p>
+        </div>
+        <div class="sub-stats">
+          <div class="stat-item">
+            <span class="stat-label">오늘 추가</span>
+            <span class="stat-value" id="today-count">0</span>
+          </div>
+          <div class="category-progress-list" id="category-progress-list"></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <!-- ===== 알림 토스트 ===== -->
+  <div class="toast" id="toast" hidden>
+    <span class="toast-message" id="toast-message"></span>
+    <button type="button" class="toast-undo" id="toast-undo">실행 취소</button>
+    <button type="button" class="toast-close" id="toast-close" aria-label="알림 닫기">×</button>
+  </div>
+
+  <!-- ===== 스크린 리더 전용 알림 영역 ===== -->
+  <div id="sr-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="sr-alert" class="visually-hidden" role="alert" aria-atomic="true"></div>
+
+  <!-- ===== 가져오기 확인 대화상자 ===== -->
+  <dialog class="dialog" id="import-dialog" aria-labelledby="import-dialog-title" aria-describedby="import-summary">
+    <form method="dialog" class="dialog-form">
+      <h2 id="import-dialog-title" class="dialog-title">데이터 가져오기</h2>
+      <p id="import-summary" class="dialog-summary"></p>
+
+      <fieldset class="dialog-fieldset">
+        <legend>가져오기 방식</legend>
+        <label><input type="radio" name="import-mode" value="merge" checked> 현재 목록에 합치기</label>
+        <label><input type="radio" name="import-mode" value="replace"> 현재 목록을 덮어쓰기</label>
+      </fieldset>
+
+      <label class="dialog-check">
+        <input type="checkbox" id="import-backup" checked>
+        가져오기 전에 현재 데이터를 백업 파일(JSON)로 저장
+      </label>
+      <p class="dialog-warning" id="import-warning" hidden>
+        ⚠ 백업 없이 덮어쓰면 현재 항목을 파일로 되살릴 수 없습니다. (이번 세션에서는 실행 취소 가능)
+      </p>
+
+      <div class="dialog-actions">
+        <button type="submit" value="cancel" class="secondary-btn">취소</button>
+        <button type="submit" value="confirm" class="primary-btn">가져오기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="script.js"></script>
+  <script>
+    /*
+     * 데스크톱 레이아웃 보조 스크립트(web_version 전용, 앱 로직과는 무관)
+     *
+     * 문제: 입력 폼이 목록 위에 고정(sticky)되어 있어서, 브라우저가 항목을 화면에 보이게
+     *       스크롤할 때(중복 경고 강조, 키보드 이동 등) 항목이 고정 영역 뒤에 가려질 수 있습니다.
+     * 해결: 고정 영역의 실제 높이를 CSS 변수 --sticky-h로 알려 주고, CSS의 scroll-padding-top이
+     *       그만큼 아래에 멈추게 합니다. 분류 안내나 경고 문구가 나타나면 높이가 바뀌므로
+     *       ResizeObserver로 계속 갱신합니다.
+     */
+    (() => {
+      const top = document.querySelector('.main-top');
+      const list = document.getElementById('todo-list');
+      if (!top || !list) return;
+
+      /** 고정 영역 높이를 CSS 변수에 반영합니다. 고정되지 않는 좁은 화면에서는 0입니다. */
+      function updateStickyHeight() {
+        const sticky = getComputedStyle(top).position === 'sticky';
+        document.documentElement.style.setProperty('--sticky-h', sticky ? `${top.offsetHeight}px` : '0px');
+      }
+
+      updateStickyHeight();
+      if ('ResizeObserver' in window) new ResizeObserver(updateStickyHeight).observe(top);
+      window.addEventListener('resize', updateStickyHeight);
+
+      /*
+       * 중복 경고는 '경고 문구 표시(고정 영역이 커짐) → 기존 항목으로 스크롤'이 한 번에 일어납니다.
+       * 이때 스크롤 목표는 커지기 전의 높이로 계산되므로, 강조 애니메이션(flash)이 시작되는 시점에
+       * 높이를 다시 재고 한 번 더 스크롤해서 최종 위치를 바로잡습니다.
+       */
+      list.addEventListener('animationstart', (e) => {
+        if (e.animationName !== 'flash' || !(e.target instanceof Element)) return;
+        updateStickyHeight();
+        e.target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    })();
+  </script>
+</body>
+</html>
