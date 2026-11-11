@@ -1196,7 +1196,13 @@ html,
   scroll-padding-top: calc(var(--sticky-h, 0px) + 12px);
 }
 
-/* 사이드바의 검색창 */
+/* 사이드바의 검색창.
+ * 공통 스타일의 `.search-box { flex: 1 }`(예전 가로 헤더용)이 세로 사이드바에서는
+ * 남는 높이를 모두 차지해 검색창 아래에 큰 빈 공간을 만들므로 늘어나지 않게 합니다. */
+.sidebar .search-box {
+  flex: none;
+}
+
 .sidebar .search-box input {
   padding: 9px 14px;
 }
